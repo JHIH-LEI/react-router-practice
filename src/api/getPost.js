@@ -4,7 +4,9 @@ export async function getPost(id) {
     const postDataResponse = await fetch(`${BACKEND_URL}/posts/${id}`);
     const postData = await postDataResponse.json();
 
-    const userDataResponse = await fetch(`${hostUrl}/users/${postData.userId}`);
+    const userDataResponse = await fetch(
+      `${BACKEND_URL}/users/${postData.userId}`
+    );
     const userData = await userDataResponse.json();
 
     postData.user = userData;

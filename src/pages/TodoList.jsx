@@ -1,5 +1,5 @@
 import { useLoaderData } from "react-router-dom";
-import { Todo } from "./Todo";
+import { Todo } from "../Components/Todo";
 
 export function TodoList() {
   const { todos } = useLoaderData();
