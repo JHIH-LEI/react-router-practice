@@ -1,6 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import {
+  Navigate,
+  createBrowserRouter,
+  RouterProvider,
+  redirect,
+} from "react-router-dom";
 // import { Post } from "./pages/Post";
 import { PostList } from "./pages/PostList";
 import { UserList } from "./pages/UserList";
@@ -14,6 +19,11 @@ import { CommentList } from "./pages/Comments/CommentList";
 import { UserPage } from "./pages/UserPage";
 import { getTodos } from "./api/getTodos";
 import { getComments } from "./api/getComments";
+import { NewPost } from "./pages/NewPost";
+import { getUsers } from "./api/getUsers";
+import { createPost } from "./api/createPost";
+import { EditPost } from "./pages/EditPost";
+import { putPost } from "./api/putPost";
 const BACKEND_URL = import.meta.env.VITE_URL;
 // 因為Loader會load整條父母，子的母loader在子也會load?, 所以啥時應該作為childer?
 
@@ -25,16 +35,78 @@ const router = createBrowserRouter([
       {
         errorElement: <ErrorBoundary />,
         children: [
+          { index: 1, element: <Navigate to="/posts" /> },
           {
             path: "/posts",
             element: <PostList />,
             loader: async ({ request }) => {
-              const userId = new URL(request.url).searchParams.get("userId");
-              const url = userId
-                ? `${BACKEND_URL}/posts?userId=${userId}`
-                : `${BACKEND_URL}/posts`;
-              const postsRes = await fetch(url, { signal: request.signal });
-              return { posts: await postsRes.json() };
+              const url = new URL(request.url);
+              const searchParams = url.searchParams;
+              const queryByUserId = !searchParams.get("userId")
+                ? ""
+                : `&userId=${searchParams.get("userId")}`;
+              const query = searchParams.get("q")
+                ? `q=${searchParams.get("q")}`
+                : "q=";
+
+              const requestUrl = `${BACKEND_URL}${url.pathname}?${query}${queryByUserId}`;
+              const [postsRes, users] = await Promise.all([
+                fetch(requestUrl, { signal: request.signal }),
+                getUsers({ options: { signal: request.signal } }),
+              ]);
+              return { posts: await postsRes.json(), users };
+            },
+          },
+          {
+            path: "/posts/new",
+            element: <NewPost />,
+            loader: async ({ request }) => {
+              const users = await getUsers({
+                options: { signal: request.signal },
+              });
+              return { users };
+            },
+            action: async ({ request }) => {
+              const formData = await request.formData();
+              const updates = Object.fromEntries(formData);
+
+              await createPost({
+                options: {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json", // 根据实际情况设置请求头
+                  },
+                  body: JSON.stringify(updates),
+                },
+              });
+
+              return redirect("/posts");
+            },
+          },
+          {
+            path: "/posts/:postId/edit",
+            element: <EditPost />,
+            loader: async ({ params, request }) => {
+              const [post, users] = await Promise.all([
+                getPost(params.postId),
+                getUsers({ options: request.signal }),
+              ]);
+              return { users, post };
+            },
+            action: async ({ request, params }) => {
+              const formData = await request.formData();
+              const update = Object.fromEntries(formData);
+              await putPost({
+                postId: params.postId,
+                options: {
+                  body: JSON.stringify(update),
+                  method: "PUT",
+                  headers: {
+                    "Content-Type": "application/json", // 根据实际情况设置请求头
+                  },
+                },
+              });
+              return redirect(`/posts/${params.postId}`);
             },
           },
           {
@@ -63,7 +135,7 @@ const router = createBrowserRouter([
             path: "/users",
             element: <UserList />,
             loader: ({ request }) => {
-              return fetch(`${BACKEND_URL}/users`, { signal: request.signal });
+              return getUsers({ options: { signal: request.signal } });
             },
           },
           {
